@@ -78,6 +78,23 @@ namespace System.Web.Routing
 			write_lock = new Lock (this, false);
 		}
 
+	
+		//
+                // DTJ - just stub these out for now....
+                //
+                public bool AppendTrailingSlash
+                {
+                        get { return true; }
+                        set { }
+                }
+
+                public bool LowercaseUrls
+                {
+                        get { return false; }
+                        set { }
+                }
+
+
 		//VirtualPathProvider provider;
 		Dictionary<string,RouteBase> d = new Dictionary<string,RouteBase> ();
 
