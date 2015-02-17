@@ -840,7 +840,7 @@ runtest-managed: test-runner.exe $(TESTSI_CS) $(TESTSI_IL) $(TESTBS) libtest.la 
 	$(RUNTIME) ./test-runner.exe -j a --disabled "$${disabled_tests}" $(TESTSI_CS) $(TESTBS) $(TESTSI_IL)
 
 testjit:
-	@if test x$(M) != x; then $(MAKE) runtest-managed; else $(MAKE) runtest; fi
+	@if test x$(M) != x0; then $(MAKE) runtest-managed; else $(MAKE) runtest; fi
 
 testaot:
 	@$(MAKE) AOT=1 runtest
@@ -904,12 +904,11 @@ test-cattr-type-load: TestDriver.dll custom-attr-errors.cs custom-attr-errors-li
 	@$(RUNTIME) custom-attr-errors.exe > custom-attr-errors.exe.stdout 2> custom-attr-errors.exe.stderr
 
 EXTRA_DIST += reflection-load-with-context-lib.cs reflection-load-with-context-second-lib.cs reflection-load-with-context.cs
-test-reflection-load-with-context: TestDriver.dll reflection-load-with-context-lib.cs reflection-load-with-context-second-lib.cs reflection-load-with-context.cs
+test-reflection-load-with-context: reflection-load-with-context-lib.cs reflection-load-with-context-second-lib.cs reflection-load-with-context.exe
 	rm -rf reflection-load-dir
 	mkdir reflection-load-dir
 	$(MCS) /t:library $(srcdir)/reflection-load-with-context-second-lib.cs -out:reflection-load-dir/reflection-load-with-context-second-lib.dll
 	$(MCS) /t:library -r:reflection-load-dir/reflection-load-with-context-second-lib.dll $(srcdir)/reflection-load-with-context-lib.cs -out:reflection-load-dir/reflection-load-with-context-lib.dll
-	$(MCS) reflection-load-with-context.cs
 	@echo "Testing reflection-load-with-context.cs.exe..."
 	@$(RUNTIME) reflection-load-with-context.exe > reflection-load-with-context.exe.stdout 2> reflection-load-with-context.exe.stderr
 

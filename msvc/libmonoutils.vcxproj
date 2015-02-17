@@ -73,6 +73,7 @@
     <ClCompile Include="..\mono\utils\mono-hwcap.c" />
     <ClCompile Include="..\mono\utils\mono-hwcap-x86.c" />
     <ClCompile Include="..\mono\utils\bsearch.c" />
+    <ClInclude Include="..\mono\utils\json.c" />    
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\mono\utils\dlmalloc.h" />
@@ -134,6 +135,7 @@
     <ClInclude Include="..\mono\utils\mono-hwcap.h" />
     <ClInclude Include="..\mono\utils\mono-hwcap-x86.h" />
     <ClInclude Include="..\mono\utils\bsearch.h" />
+    <ClInclude Include="..\mono\utils\json.h" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="..\mono\utils\win64.asm">
@@ -150,25 +152,25 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v110</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">

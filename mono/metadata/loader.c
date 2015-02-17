@@ -103,6 +103,7 @@ mono_loader_init ()
 		mono_native_tls_alloc (&loader_error_thread_id, NULL);
 		mono_native_tls_alloc (&loader_lock_nest_id, NULL);
 
+		mono_counters_init ();
 		mono_counters_register ("Inflated signatures size",
 								MONO_COUNTER_GENERICS | MONO_COUNTER_INT, &inflated_signatures_size);
 		mono_counters_register ("Memberref signature cache size",
@@ -1197,13 +1198,9 @@ method_from_methodspec (MonoImage *image, MonoGenericContext *context, guint32 i
 	}
 
 	if ((token & MONO_METHODDEFORREF_MASK) == MONO_METHODDEFORREF_METHODDEF) {
-		method = mono_get_method_full (image, MONO_TOKEN_METHOD_DEF | nindex, NULL, context);
-		if (!method) {
-			if (mono_loader_get_last_error ())
-				mono_error_set_from_loader_error (error);
-			else
-				mono_error_set_bad_image (error, image, "Could not resolve methodspec 0x%08x methoddef token 0x%08x", idx, MONO_TOKEN_METHOD_DEF | nindex);
-		}
+		method = mono_get_method_checked (image, MONO_TOKEN_METHOD_DEF | nindex, NULL, context, error);
+		if (!method)
+			return NULL;
 	} else {
 		method = method_from_memberref (image, nindex, context, NULL, error);
 	}

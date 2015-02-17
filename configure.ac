@@ -529,11 +529,17 @@ AC_CACHE_CHECK([for clang],
 WARN=''
 if test x"$GCC" = xyes; then
         WARN='-Wall -Wunused -Wmissing-prototypes -Wmissing-declarations -Wstrict-prototypes  -Wmissing-prototypes -Wnested-externs -Wpointer-arith -Wno-cast-qual -Wwrite-strings -Wno-switch -Wno-switch-enum -Wno-unused-value'
+
+		# We require C99 with some GNU extensions, e.g. `linux` macro
+		CFLAGS="$CFLAGS -std=gnu99"
+
 		# The runtime code does not respect ANSI C strict aliasing rules
 		CFLAGS="$CFLAGS -fno-strict-aliasing"
 
 		# We rely on signed overflow to behave
 		CFLAGS="$CFLAGS -fwrapv"
+
+		CFLAGS="$CFLAGS -DMONO_DLL_EXPORT"
 
 		ORIG_CFLAGS=$CFLAGS
 		CFLAGS="$CFLAGS -Wdeclaration-after-statement"
@@ -3036,6 +3042,18 @@ if test "x$host" != "x$target"; then
 		sgen_supported=true
 		# Can't use tls, since it depends on the runtime detection of tls offsets
 		# in mono-compiler.h		
+		with_tls=pthread
+		target_mach=no
+		;;
+   x86_64*-linux-*)
+		TARGET=AMD64;
+		arch_target=amd64;
+		AC_DEFINE(TARGET_AMD64, 1, [...])
+		AC_DEFINE(TARGET_ANDROID, 1, [...])
+		CPPFLAGS="$CPPFLAGS"
+		sgen_supported=true
+		# Can't use tls, since it depends on the runtime detection of tls offsets
+		# in mono-compiler.h
 		with_tls=pthread
 		target_mach=no
 		;;

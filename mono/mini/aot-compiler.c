@@ -50,6 +50,7 @@
 #include <mono/utils/mono-compiler.h>
 #include <mono/utils/mono-time.h>
 #include <mono/utils/mono-mmap.h>
+#include <mono/utils/json.h>
 
 #include "mini.h"
 #include "seq-points.h"
@@ -129,6 +130,7 @@ typedef struct MonoAotOptions {
 	char *llvm_path;
 	char *instances_logfile_path;
 	char *logfile;
+	gboolean dump_json;
 } MonoAotOptions;
 
 typedef struct MonoAotStats {
@@ -5035,7 +5037,10 @@ emit_method_code (MonoAotCompile *acfg, MonoCompile *cfg)
 	emit_line (acfg);
 
 	if (acfg->aot_opts.write_symbols) {
-		emit_symbol_size (acfg, debug_sym, ".");
+		if (debug_sym)
+			emit_symbol_size (acfg, debug_sym, ".");
+		else
+			emit_symbol_size (acfg, cfg->asm_symbol, ".");
 		g_free (debug_sym);
 	}
 
@@ -5855,7 +5860,9 @@ emit_plt (MonoAotCompile *acfg)
 			emit_label (acfg, plt_entry->llvm_symbol);
 			if (acfg->llvm_separate) {
 				emit_global (acfg, plt_entry->llvm_symbol, TRUE);
+#if defined(TARGET_MACH)
 				fprintf (acfg->fp, ".private_extern %s\n", plt_entry->llvm_symbol);
+#endif
 			}
 		}
 
@@ -6463,6 +6470,8 @@ mono_aot_parse_options (const char *aot_options, MonoAotOptions *opts)
 			exit (0);
 		} else if (str_begins_with (arg, "gc-maps")) {
 			mini_gc_enable_gc_maps_for_aot ();
+		} else if (str_begins_with (arg, "dump")) {
+			opts->dump_json = TRUE;			
 		} else if (str_begins_with (arg, "help") || str_begins_with (arg, "?")) {
 			printf ("Supported options for --aot:\n");
 			printf ("    outfile=\n");
@@ -6491,6 +6500,7 @@ mono_aot_parse_options (const char *aot_options, MonoAotOptions *opts)
 			printf ("    print-skipped\n");
 			printf ("    no-instances\n");
 			printf ("    stats\n");
+			printf ("    dump\n");
 			printf ("    info\n");
 			printf ("    help/?\n");
 			exit (0);
@@ -8895,6 +8905,160 @@ acfg_free (MonoAotCompile *acfg)
 	g_free (acfg);
 }
 
+#define WRAPPER(e,n) n,
+static const char* const
+wrapper_type_names [MONO_WRAPPER_NUM + 1] = {
+#include "mono/metadata/wrapper-types.h"
+	NULL
+};
+
+static G_GNUC_UNUSED const char*
+get_wrapper_type_name (int type)
+{
+	return wrapper_type_names [type];
+}
+
+//#define DUMP_PLT
+//#define DUMP_GOT
+
+static void aot_dump (MonoAotCompile *acfg)
+{
+	FILE *dumpfile;
+	char * dumpname;
+
+	JsonWriter writer;
+	json_writer_init (&writer);
+
+	json_writer_object_begin(&writer);
+
+	// Methods
+	json_writer_indent (&writer);
+	json_writer_object_key(&writer, "methods");
+	json_writer_array_begin (&writer);
+
+	int i;
+	for (i = 0; i < acfg->nmethods; ++i) {
+		MonoCompile *cfg;
+		MonoMethod *method;
+		MonoClass *klass;
+		int index;
+
+		cfg = acfg->cfgs [i];
+		if (!cfg)
+			continue;
+
+		method = cfg->orig_method;
+
+		json_writer_indent (&writer);
+		json_writer_object_begin(&writer);
+
+		json_writer_indent (&writer);
+		json_writer_object_key(&writer, "name");
+		json_writer_printf (&writer, "\"%s\",\n", method->name);
+
+		json_writer_indent (&writer);
+		json_writer_object_key(&writer, "signature");
+		json_writer_printf (&writer, "\"%s\",\n", mono_method_full_name (method,
+			/*signature=*/TRUE));
+
+		json_writer_indent (&writer);
+		json_writer_object_key(&writer, "code_size");
+		json_writer_printf (&writer, "\"%d\",\n", cfg->code_size);
+
+		klass = method->klass;
+
+		json_writer_indent (&writer);
+		json_writer_object_key(&writer, "class");
+		json_writer_printf (&writer, "\"%s\",\n", klass->name);
+
+		json_writer_indent (&writer);
+		json_writer_object_key(&writer, "namespace");
+		json_writer_printf (&writer, "\"%s\",\n", klass->name_space);
+
+		json_writer_indent (&writer);
+		json_writer_object_key(&writer, "wrapper_type");
+		json_writer_printf (&writer, "\"%s\",\n", get_wrapper_type_name(method->wrapper_type));
+
+		json_writer_indent_pop (&writer);
+		json_writer_indent (&writer);
+		json_writer_object_end (&writer);
+		json_writer_printf (&writer, ",\n");
+	}
+
+	json_writer_indent_pop (&writer);
+	json_writer_indent (&writer);
+	json_writer_array_end (&writer);
+	json_writer_printf (&writer, ",\n");
+
+	// PLT entries
+#ifdef DUMP_PLT
+	json_writer_indent_push (&writer);
+	json_writer_indent (&writer);
+	json_writer_object_key(&writer, "plt");
+	json_writer_array_begin (&writer);
+
+	for (i = 0; i < acfg->plt_offset; ++i) {
+		MonoPltEntry *plt_entry = NULL;
+		MonoJumpInfo *ji;
+
+		if (i == 0)
+			/* 
+			 * The first plt entry is unused.
+			 */
+			continue;
+
+		plt_entry = g_hash_table_lookup (acfg->plt_offset_to_entry, GUINT_TO_POINTER (i));
+		ji = plt_entry->ji;
+
+		json_writer_indent (&writer);
+		json_writer_printf (&writer, "{ ");
+		json_writer_object_key(&writer, "symbol");
+		json_writer_printf (&writer, "\"%s\" },\n", plt_entry->symbol);
+	}
+
+	json_writer_indent_pop (&writer);
+	json_writer_indent (&writer);
+	json_writer_array_end (&writer);
+	json_writer_printf (&writer, ",\n");
+#endif
+
+	// GOT entries
+#ifdef DUMP_GOT
+	json_writer_indent_push (&writer);
+	json_writer_indent (&writer);
+	json_writer_object_key(&writer, "got");
+	json_writer_array_begin (&writer);
+
+	json_writer_indent_push (&writer);
+	for (i = 0; i < acfg->got_info.got_patches->len; ++i) {
+		MonoJumpInfo *ji = g_ptr_array_index (acfg->got_info.got_patches, i);
+
+		json_writer_indent (&writer);
+		json_writer_printf (&writer, "{ ");
+		json_writer_object_key(&writer, "patch_name");
+		json_writer_printf (&writer, "\"%s\" },\n", get_patch_name (ji->type));
+	}
+
+	json_writer_indent_pop (&writer);
+	json_writer_indent (&writer);
+	json_writer_array_end (&writer);
+	json_writer_printf (&writer, ",\n");
+#endif
+
+	json_writer_indent_pop (&writer);
+	json_writer_indent (&writer);
+	json_writer_object_end (&writer);
+
+	dumpname = g_strdup_printf ("%s.json", g_path_get_basename (acfg->image->name));
+	dumpfile = fopen (dumpname, "w+");
+	g_free (dumpname);
+
+	fprintf (dumpfile, "%s", writer.text->str);
+	fclose (dumpfile);
+
+	json_writer_destroy (&writer);
+}
+
 int
 mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 {
@@ -9354,6 +9518,9 @@ mono_compile_assembly (MonoAssembly *ass, guint32 opts, const char *aot_options)
 	}
 
 	aot_printf (acfg, "JIT time: %d ms, Generation time: %d ms, Assembly+Link time: %d ms.\n", acfg->stats.jit_time / 1000, acfg->stats.gen_time / 1000, acfg->stats.link_time / 1000);
+
+	if (acfg->aot_opts.dump_json)
+		aot_dump (acfg);
 
 	acfg_free (acfg);
 	

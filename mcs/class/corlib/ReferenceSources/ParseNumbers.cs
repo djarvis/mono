@@ -40,12 +40,19 @@ namespace System {
         internal const int TreatAsI1=0x400;
         internal const int TreatAsI2=0x800;
         internal const int IsTight=0x1000;
-//        internal const int NoSpace=0x2000;
+        internal const int NoSpace=0x2000;
 
-        public  static int StringToInt (string value, int fromBase, int flags)
+		public static int StringToInt (string value, int fromBase, int flags)
 		{
-			if ((flags & IsTight) == 0)
-				throw new NotImplementedException ();
+			unsafe {
+				return StringToInt (value, fromBase, flags, null);
+			}
+		}
+
+		public unsafe static int StringToInt (string value, int fromBase, int flags, int* parsePos)
+		{
+			if ((flags & (IsTight | NoSpace)) == 0)
+				throw new NotImplementedException (flags.ToString ());
 			
 			if (value == null)
 				return 0;
@@ -54,7 +61,6 @@ namespace System {
 			uint result = 0;
 			int digitValue;
 
-			int i = 0; 
 			int len = value.Length;
 			bool negative = false;
 
@@ -62,6 +68,8 @@ namespace System {
 				// Mimic broken .net behaviour
 				throw new ArgumentOutOfRangeException ("Empty string");
 			}
+
+			int i = parsePos == null ? 0 : *parsePos;
 
 			//Check for a sign
 			if (value [i] == '-') {
@@ -91,17 +99,19 @@ namespace System {
 			}
 
 			while (i < len) {
-				char c = value [i++];
+				char c = value [i];
 				if (Char.IsNumber (c)) {
 					digitValue = c - '0';
 				} else if (Char.IsLetter (c)) {
 					digitValue = Char.ToLowerInvariant (c) - 'a' + 10;
 				} else {
-					if (chars > 0) {
-						throw new FormatException ("Additional unparsable characters are at the end of the string.");
-					}
+					if (i == 0)
+						throw new FormatException ("Could not find any parsable digits.");
 					
-					throw new FormatException ("Could not find any parsable digits.");
+					if ((flags & IsTight) != 0)
+						throw new FormatException ("Additional unparsable characters are at the end of the string.");
+					
+					break;
 				}
 
 				if (digitValue >= fromBase) {
@@ -118,10 +128,14 @@ namespace System {
 					
 				result = res;
 				chars++;
+				++i;
 			}
 
 			if (chars == 0)
 				throw new FormatException ("Could not find any parsable digits.");
+
+			if (parsePos != null)
+				*parsePos = i;
 
 			return negative ? -(int)result : (int)result;
 		}        
@@ -137,11 +151,11 @@ namespace System {
 
 			switch (toBase) {
 			case 2:
-				return ConvertToBase2 (val);
+				return ConvertToBase2 (val).ToString ();
 			case 8:
-				return ConvertToBase8 (val);
+				return ConvertToBase8 (val).ToString ();
 			case 16:
-				return ConvertToBase16 (val);
+				return ConvertToBase16 (val).ToString ();
 			default:
 				throw new NotImplementedException ();
 			}
@@ -149,8 +163,15 @@ namespace System {
 
  		public static long StringToLong (string value, int fromBase, int flags)
 		{
-			if ((flags & IsTight) == 0)
-				throw new NotImplementedException ();
+			unsafe {
+				return StringToLong (value, fromBase, flags, null);
+			}
+		}
+
+		public unsafe static long StringToLong (string value, int fromBase, int flags, int* parsePos)
+		{
+			if ((flags & (IsTight | NoSpace)) == 0)
+				throw new NotImplementedException (flags.ToString ());
 
 			if (value == null)
 				return 0;
@@ -159,7 +180,6 @@ namespace System {
 			int digitValue = -1;
 			long result = 0;
 
-			int i = 0; 
 			int len = value.Length;
 			bool negative = false;
 
@@ -167,6 +187,8 @@ namespace System {
 				// Mimic broken .net behaviour
 				throw new ArgumentOutOfRangeException ("Empty string");
 			}
+
+			int i = parsePos == null ? 0 : *parsePos;
 
 			//Check for a sign
 			if (value [i] == '-') {
@@ -187,19 +209,19 @@ namespace System {
 			}
 
 			while (i < len) {
-				char c = value[i++];
+				char c = value[i];
 				if (Char.IsNumber (c)) {
 					digitValue = c - '0';
 				} else if (Char.IsLetter (c)) {
 					digitValue = Char.ToLowerInvariant (c) - 'a' + 10;
 				} else {
-					if (chars > 0) {
-						throw new FormatException ("Additional unparsable "
-							+ "characters are at the end of the string.");
-					} else {
-						throw new FormatException ("Could not find any parsable"
-							+ " digits.");
-					}
+					if (i == 0)
+						throw new FormatException ("Could not find any parsable digits.");
+
+					if ((flags & IsTight) != 0)
+						throw new FormatException ("Additional unparsable characters are at the end of the string.");
+
+					break;
 				}
 
 				if (digitValue >= fromBase) {
@@ -214,41 +236,61 @@ namespace System {
 
 				result = fromBase * result + digitValue;
 				chars++;
+				++i;
 			}
 
 			if (chars == 0)
 				throw new FormatException ("Could not find any parsable digits.");
+
+			if (parsePos != null)
+				*parsePos = i;
 
 			return negative ? -result : result;
 		}
 
 		public static string IntToString (int value, int toBase, int width, char paddingChar, int flags)
  		{
-			if (value == 0)
-				return "0";
+			StringBuilder sb;
 
-			if (toBase == 10)
-				return value.ToString ();
+			if (value == 0) {
+				if (width <= 0)
+					return "0";
 
-			byte[] val;
-			if ((flags & PrintAsI1) != 0) {
-				val = BitConverter.GetBytes ((byte) value);
-			} else if ((flags & PrintAsI2) != 0) {
-				val = BitConverter.GetBytes ((short) value);
-			} else {
-				val = BitConverter.GetBytes (value);
+				sb = new StringBuilder ("0", width);
+			} else if (toBase == 10)
+				sb = new StringBuilder (value.ToString ());
+			else {
+				byte[] val;
+				if ((flags & PrintAsI1) != 0) {
+					val = BitConverter.GetBytes ((byte) value);
+				} else if ((flags & PrintAsI2) != 0) {
+					val = BitConverter.GetBytes ((short) value);
+				} else {
+					val = BitConverter.GetBytes (value);
+				}
+
+				switch (toBase) {
+				case 2:
+					sb = ConvertToBase2 (val);
+					break;
+				case 8:
+					sb = ConvertToBase8 (val);
+					break;
+				case 16:
+					sb = ConvertToBase16 (val);
+					break;
+				default:
+					throw new NotImplementedException ();
+				}
 			}
 
-			switch (toBase) {
-			case 2:
-				return ConvertToBase2 (val);
-			case 8:
-				return ConvertToBase8 (val);
-			case 16:
-				return ConvertToBase16 (val);
-			default:
-				throw new NotImplementedException ();
+			var padding = width - sb.Length;
+			while (padding > 0) {
+				sb.Insert (0, paddingChar);
+				--padding;
 			}
+
+			return sb.ToString ();
  		}
 
 		static void EndianSwap (ref byte[] value)
@@ -259,7 +301,7 @@ namespace System {
 			value = buf;
 		}
 
-		static string ConvertToBase2 (byte[] value)
+		static StringBuilder ConvertToBase2 (byte[] value)
 		{
 			if (!BitConverter.IsLittleEndian)
 				EndianSwap (ref value);
@@ -277,10 +319,10 @@ namespace System {
 					b <<= 1;
 				}
 			}
-			return sb.ToString ();
+			return sb;
 		}
 
-		static string ConvertToBase8 (byte[] value)
+		static StringBuilder ConvertToBase8 (byte[] value)
 		{
 			ulong l = 0;
 			switch (value.Length) {
@@ -309,10 +351,10 @@ namespace System {
 					sb.Append (val);
 				}
 			}
-			return sb.ToString ();
+			return sb;
 		}
 
-		static string ConvertToBase16 (byte[] value)
+		static StringBuilder ConvertToBase16 (byte[] value)
 		{
 			if (!BitConverter.IsLittleEndian)
 				EndianSwap (ref value);
@@ -340,7 +382,7 @@ namespace System {
 					sb.Append (low);
 				}
 			}
-			return sb.ToString ();
+			return sb;
 		}
 
     }

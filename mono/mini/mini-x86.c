@@ -2289,7 +2289,7 @@ static int tls_gs_offset;
 gboolean
 mono_x86_have_tls_get (void)
 {
-#ifdef __APPLE__
+#ifdef TARGET_MACH
 	static gboolean have_tls_get = FALSE;
 	static gboolean inited = FALSE;
 	guint32 *ins;
@@ -3174,7 +3174,8 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			x86_push_membase (code, ins->inst_basereg, 0xf0f0f0f0);
 			break;
 		case OP_MOVE:
-			x86_mov_reg_reg (code, ins->dreg, ins->sreg1, 4);
+			if (ins->dreg != ins->sreg1)
+				x86_mov_reg_reg (code, ins->dreg, ins->sreg1, 4);
 			break;
 		case OP_TAILCALL: {
 			MonoCallInst *call = (MonoCallInst*)ins;
@@ -3699,6 +3700,14 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 		}
 		case OP_FMOVE:
 			/* Not needed on the fp stack */
+			break;
+		case OP_MOVE_F_TO_I4:
+			x86_fst_membase (code, ins->backend.spill_var->inst_basereg, ins->backend.spill_var->inst_offset, FALSE, TRUE);
+			x86_mov_reg_membase (code, ins->dreg, ins->backend.spill_var->inst_basereg, ins->backend.spill_var->inst_offset, 4);
+			break;
+		case OP_MOVE_I4_TO_F:
+			x86_mov_membase_reg (code, ins->backend.spill_var->inst_basereg, ins->backend.spill_var->inst_offset, ins->sreg1, 4);
+			x86_fld_membase (code, ins->backend.spill_var->inst_basereg, ins->backend.spill_var->inst_offset, FALSE);
 			break;
 		case OP_FADD:
 			x86_fp_op_reg (code, X86_FADD, 1, TRUE);
@@ -4920,10 +4929,6 @@ mono_arch_output_basic_block (MonoCompile *cfg, MonoBasicBlock *bb)
 			break;		
 		case OP_XZERO:
 			x86_sse_alu_pd_reg_reg (code, X86_SSE_PXOR, ins->dreg, ins->dreg);
-			break;
-		case OP_ICONV_TO_R8_RAW:
-			x86_mov_membase_reg (code, ins->backend.spill_var->inst_basereg, ins->backend.spill_var->inst_offset, ins->sreg1, 4);
-			x86_fld_membase (code, ins->backend.spill_var->inst_basereg, ins->backend.spill_var->inst_offset, FALSE);
 			break;
 
 		case OP_FCONV_TO_R8_X:
