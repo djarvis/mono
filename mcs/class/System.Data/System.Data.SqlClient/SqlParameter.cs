@@ -97,6 +97,10 @@ namespace System.Data.SqlClient {
 			DbTypeMapping.Add (SqlDbType.NVarChar, typeof (string));
 			DbTypeMapping.Add (SqlDbType.SmallDateTime, typeof (DateTime));
 			DbTypeMapping.Add (SqlDbType.DateTime, typeof (DateTime));
+
+			//DTJ
+			DbTypeMapping.Add (SqlDbType.DateTime2, typeof (DateTime));
+
 			DbTypeMapping.Add (SqlDbType.Decimal, typeof (decimal));
 			DbTypeMapping.Add (SqlDbType.Float, typeof (double));
 			DbTypeMapping.Add (SqlDbType.Binary, typeof (byte []));
@@ -749,10 +753,17 @@ namespace System.Data.SqlClient {
 				dbType = DbType.AnsiStringFixedLength;
 				MetaParameter.IsVariableSizeType = true;
 				break;
+
+
 			case SqlDbType.DateTime:
+				//
+				//DTJ
+				//
+			case SqlDbType.DateTime2:
 				MetaParameter.TypeName = "datetime";
 				dbType = DbType.DateTime;
 				break;
+
 			case SqlDbType.SmallDateTime:
 				MetaParameter.TypeName = "smalldatetime";
 				dbType = DbType.DateTime;
@@ -832,6 +843,7 @@ namespace System.Data.SqlClient {
 				dbType = DbType.Xml;
 				MetaParameter.IsVariableSizeType = true;
 				break;
+
 			default:
 				string exception = String.Format ("No mapping exists from SqlDbType {0} to a known DbType.", type);
 				throw new ArgumentOutOfRangeException ("SqlDbType", exception);
@@ -1029,7 +1041,7 @@ namespace System.Data.SqlClient {
 
 			Type frameworkType = SystemType;
 			if (frameworkType == null)
-				throw new NotImplementedException ("Type Not Supported : " + sqlDbType.ToString());
+				throw new NotImplementedException ("Type Not Supported : " + sqlDbType.ToString ());
 
 			Type valueType = value.GetType ();
 			if (valueType == frameworkType)
